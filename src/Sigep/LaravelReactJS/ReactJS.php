@@ -11,7 +11,7 @@ use Illuminate\Foundation\Application;
 class ReactJS
 {
     /**
-     * @var Application 
+     * @var Application
      */
     private $app = null;
 
@@ -25,13 +25,13 @@ class ReactJS
      * @var string
      */
     private $src = '';
-    
+
     /**
      * Component name
      * @var string
      */
     private $component = '';
-    
+
     /**
      * Component data
      * @var array
@@ -69,6 +69,12 @@ class ReactJS
     private $src_files = [];
 
     /**
+     * Custom module for rendering custom markup
+     *  @var string
+     */
+     private $custom_module = '';
+
+    /**
      * @param \Illuminate\Foundation\Application $app
      */
     public function __construct($app)
@@ -81,6 +87,7 @@ class ReactJS
         $this->src_files = $this->app['config']->get('reactjs::src_files');
         $this->react_prefix = $this->app['config']->get('reactjs::react_prefix');
         $this->components_prefix = $this->app['config']->get('reactjs::components_prefix');
+        $this->custom_module = $this->app['config']->get('reactjs::custom_module');
 
         $this->checkFiles();
         $this->prepare();
@@ -125,10 +132,14 @@ class ReactJS
 
         if ($this->react_prefix) {
             $this->react_prefix = "window.{$this->react_prefix}.";
+        } else {
+          $this->react_prefix = "window.";
         }
 
         if ($this->components_prefix) {
             $this->components_prefix = "window.{$this->components_prefix}.";
+        } else {
+          $this->components_prefix = "window.";
         }
     }
 
@@ -152,10 +163,10 @@ class ReactJS
         if ($componentName && is_string($componentName)) {
             $this->component = $this->components_prefix . $componentName;
         }
-        
+
         return $this->component;
     }
-    
+
     /**
      * Get and/or set component data
      * @param array $data
@@ -166,10 +177,10 @@ class ReactJS
         if (is_array($data)) {
             $this->data = $data;
         }
-        
+
         return $this->data;
     }
-    
+
     /**
      * Get markup string
      * If an error occurs, the error handler will be executed if exists, won't do anything otherwise
@@ -196,7 +207,7 @@ class ReactJS
             return '';
         }
     }
-    
+
     /**
      * Get js markup to call renderComponent
      * @param string $element selector to wrapper element (will be used with document.querySelector())
@@ -215,4 +226,33 @@ class ReactJS
                 $element
             );
     }
+
+    /**
+    * Get custom markup string
+    * pass an object with a custom 'render()' function that returns markup. React prefix is prepended.
+    * If an error occurs, the error handler will be executed if exists, won't do anything otherwise
+    * @return string
+    */
+    public function customMarkup()
+    {
+      $code = $this->src;
+
+      $code .= sprintf(
+      "%s%s.render(%s)",
+      $this->react_prefix,
+      $this->custom_module,
+      json_encode($this->data)
+    );
+
+    try {
+      //return $code;
+      return $this->v8->executeString($code);
+    } catch (\Exception $e) {
+      if (is_callable($this->errorHandler)) {
+        call_user_func($this->errorHandler, $e->getMessage(), $code);
+      }
+
+      return '';
+    }
+  }
 }
